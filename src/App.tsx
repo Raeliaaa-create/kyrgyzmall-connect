@@ -3,7 +3,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { AppProvider } from "@/contexts/AppContext";
+import HomePage from "./pages/HomePage";
+import CategoryPage from "./pages/CategoryPage";
+import ProductPage from "./pages/ProductPage";
+import SearchPage from "./pages/SearchPage";
+import DordoiMapPage from "./pages/DordoiMapPage";
+import SellerPage from "./pages/SellerPage";
+import FavoritesPage from "./pages/FavoritesPage";
+import ShoppingListPage from "./pages/ShoppingListPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -11,15 +19,23 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AppProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/category/:id" element={<CategoryPage />} />
+            <Route path="/product/:id" element={<ProductPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/map" element={<DordoiMapPage />} />
+            <Route path="/seller/:id" element={<SellerPage />} />
+            <Route path="/favorites" element={<FavoritesPage />} />
+            <Route path="/shopping-list" element={<ShoppingListPage />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AppProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
