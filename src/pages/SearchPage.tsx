@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import { ArrowLeft, Camera, X, Loader2, ImageIcon, Sparkles } from 'lucide-react';
+import { ArrowLeft, Camera, X, Loader2, ImageIcon, Sparkles, Upload } from 'lucide-react';
 import { products, Product } from '@/data/products';
 import BottomNav from '@/components/BottomNav';
 import SearchBar from '@/components/SearchBar';
@@ -25,6 +25,7 @@ interface AISearchResult {
     container: string;
   }>;
   detectedItem?: string;
+  searchMethod?: string;
 }
 
 const SearchPage: React.FC = () => {
@@ -36,11 +37,13 @@ const SearchPage: React.FC = () => {
   const [detectedItem, setDetectedItem] = useState<string | null>(null);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropZoneRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   // Map AI results to full Product objects
-  const mapAIResultsToProducts = (aiProducts: AISearchResult['products']): Product[] => {
+  const mapAIResultsToProducts = useCallback((aiProducts: AISearchResult['products']): Product[] => {
     return aiProducts.map(ap => {
       // Find matching product from main products list
       const fullProduct = products.find(p => p.id === ap.id);
@@ -69,9 +72,9 @@ const SearchPage: React.FC = () => {
         reviews: []
       };
     }).filter(Boolean) as Product[];
-  };
+  }, []);
 
-  const handleTextSearch = async (q: string) => {
+  const handleTextSearch = useCallback(async (q: string) => {
     setQuery(q);
     setSearchParams({ q });
     setIsPhotoSearch(false);
@@ -94,11 +97,7 @@ const SearchPage: React.FC = () => {
       if (error) throw error;
 
       if (data.error) {
-        toast({
-          title: "Ошибка поиска",
-          description: data.error,
-          variant: "destructive"
-        });
+        console.error('Search error:', data.error);
         // Fallback to local search
         const localResults = products.filter(p => 
           p.name.toLowerCase().includes(q.toLowerCase()) ||
@@ -120,17 +119,14 @@ const SearchPage: React.FC = () => {
     } finally {
       setIsSearching(false);
     }
-  };
+  }, [mapAIResultsToProducts, setSearchParams]);
 
-  const handlePhotoSearch = () => {
+  const handlePhotoSearch = useCallback(() => {
     setIsPhotoSearch(true);
     fileInputRef.current?.click();
-  };
+  }, []);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processImage = useCallback(async (file: File) => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast({
@@ -141,11 +137,11 @@ const SearchPage: React.FC = () => {
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
       toast({
         title: "Ошибка",
-        description: "Размер файла не должен превышать 5MB",
+        description: "Размер файла не должен превышать 10MB",
         variant: "destructive"
       });
       return;
@@ -153,6 +149,7 @@ const SearchPage: React.FC = () => {
 
     setIsSearching(true);
     setHasSearched(true);
+    setIsPhotoSearch(true);
     setQuery('');
 
     try {
@@ -210,22 +207,64 @@ const SearchPage: React.FC = () => {
         variant: "destructive"
       });
     }
-    
+  }, [mapAIResultsToProducts, toast]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processImage(file);
+    }
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-  };
+  }, [processImage]);
 
-  const closePhotoSearch = () => {
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      processImage(files[0]);
+    }
+  }, [processImage]);
+
+  const closePhotoSearch = useCallback(() => {
     setIsPhotoSearch(false);
     setSearchResults([]);
     setUploadedImage(null);
     setDetectedItem(null);
     setHasSearched(false);
-  };
+  }, []);
 
-  const popularSearches = ['худи', 'кроссовки', 'сумка', 'наушники', 'платье', 'джинсы'];
+  const popularSearches = [
+    'чёрное худи oversize',
+    'кроссовки белые',
+    'детская игрушка',
+    'косметика блеск',
+    'наушники беспроводные',
+    'школьная форма'
+  ];
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -243,6 +282,7 @@ const SearchPage: React.FC = () => {
         <SearchBar 
           onSearch={handleTextSearch} 
           onPhotoSearch={handlePhotoSearch}
+          placeholder="Поиск на русском: худи, кроссовки..."
           autoFocus 
         />
       </header>
@@ -274,7 +314,7 @@ const SearchPage: React.FC = () => {
                 <div className="flex flex-col items-center justify-center py-8">
                   <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
                   <p className="text-foreground font-medium">Анализируем изображение...</p>
-                  <p className="text-sm text-muted-foreground">AI ищет похожие товары</p>
+                  <p className="text-sm text-muted-foreground">AI распознаёт товар и ищет похожие</p>
                 </div>
               ) : uploadedImage && searchResults.length > 0 ? (
                 <div>
@@ -302,16 +342,29 @@ const SearchPage: React.FC = () => {
                   <ProductGrid products={searchResults} />
                 </div>
               ) : (
-                <button
+                <div
+                  ref={dropZoneRef}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className={`w-full py-8 border-2 border-dashed rounded-xl flex flex-col items-center gap-3 transition-colors cursor-pointer ${
+                    isDragging 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-muted hover:border-primary hover:bg-muted/50'
+                  }`}
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-8 border-2 border-dashed border-muted rounded-xl flex flex-col items-center gap-3 hover:border-primary hover:bg-muted/50 transition-colors"
                 >
-                  <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                  <Upload className={`w-12 h-12 ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
                   <div className="text-center">
-                    <p className="text-foreground font-medium">Загрузите фото товара</p>
-                    <p className="text-sm text-muted-foreground mt-1">AI найдет похожие товары на рынке</p>
+                    <p className="text-foreground font-medium">
+                      {isDragging ? 'Отпустите для загрузки' : 'Загрузите или перетащите фото'}
+                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      AI найдёт похожие товары на рынке Дордой
+                    </p>
                   </div>
-                </button>
+                </div>
               )}
             </div>
           </div>
@@ -352,7 +405,7 @@ const SearchPage: React.FC = () => {
             </div>
             <h2 className="text-lg font-bold text-foreground mb-2">AI Поиск товаров</h2>
             <p className="text-muted-foreground mb-6">
-              Введите запрос или загрузите фото товара
+              Введите запрос на русском или загрузите фото
             </p>
             
             <div className="text-left">
@@ -376,12 +429,13 @@ const SearchPage: React.FC = () => {
                 Поиск по фото
               </h3>
               <p className="text-sm text-muted-foreground mb-3">
-                Сфотографируйте товар, и AI найдет похожие на рынке Дордой
+                Сфотографируйте товар или перетащите изображение
               </p>
               <button
                 onClick={handlePhotoSearch}
-                className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity"
+                className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
               >
+                <Upload className="w-5 h-5" />
                 Загрузить фото
               </button>
             </div>
