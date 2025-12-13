@@ -283,7 +283,9 @@ const SearchPage: React.FC = () => {
           onSearch={handleTextSearch} 
           onPhotoSearch={handlePhotoSearch}
           placeholder="Поиск на русском: худи, кроссовки..."
-          autoFocus 
+          autoFocus
+          enableDebounce
+          debounceMs={400}
         />
       </header>
 
